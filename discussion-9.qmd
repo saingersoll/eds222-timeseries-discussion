@@ -1,0 +1,79 @@
+---
+title: "lab9-timeseries"
+format: html
+editor: visual
+---
+```{r}
+# List of required packages
+packages <- c("forecast", "tidyverse", "lterdatasampler", "tsibble", "feasts", "lubridate")
+
+# Function to install missing packages
+install_missing_packages <- function(packages) {
+  new_packages <- packages[!(packages %in% installed.packages()[,"Package"])]
+  if (length(new_packages) > 0) {
+    install.packages(new_packages, dependencies = TRUE)
+  }
+}
+
+# Check and install missing packages
+install_missing_packages(packages)
+
+library(forecast)
+library(tidyverse)
+library(lterdatasampler)
+library(tsibble)
+library(feasts)
+library(lubridate)
+
+```
+# Read in data and explore
+
+```{r}
+weather <- ltersampler::ntl_airtemp
+
+head(weather)
+summary(weather)
+```
+
+# Plotting
+```{r}
+weather %>% 
+  mutate(
+    yr_mo = yearmonth(sampledate),            # converts date
+    year = year(sampledate)
+  ) %>% 
+  ggplot(aes(x = year, 
+             y = ave_air_temp_adjusted)) +
+  stat_summary(geom = 'line',                 # includes plot summary of value x amount lvls & associated changes 
+               fun = 'mean',
+               alpha = 0.5) +
+  geom_smooth(se = FALSE,
+              color = 'hotpink') +
+  labs(x = 'Year', y = 'Annual Avg Air Temp (C). Madison, WI') 
+```
+
+# Convert data into timeseries object
+```{r}
+
+weather_ts <- weather %>% 
+  mutate(yr_mo = yearmonth(sampledate)) %>% 
+  group_by(yr_mo) %>% 
+  summarize(avg_temp = mean(ave_air_temp_adjusted, na.rm = TRUE)) %>% 
+  tsibble(index = yr_mo)          # this sets our time series index
+
+head(weather_ts, 10) # weather_ts %>% head(10)
+```
+
+# Decompose Our Time Series Data
+
+STL Decomposition
+
+Splitting data into trend + season + noise
+```{r}
+dcmp <- weather_ts %>% 
+  model(STL(avg_temp))
+
+# obtain compoenets 
+components(dcmp)
+```
+
