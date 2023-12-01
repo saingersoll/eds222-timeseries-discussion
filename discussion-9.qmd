@@ -3,6 +3,17 @@ title: "lab9-timeseries"
 format: html
 editor: visual
 ---
+
+```{r}
+# tester chunk bc next chunk is getting funky
+library(forecast)
+library(tidyverse)
+library(lterdatasampler)
+library(tsibble)
+library(feasts)
+library(lubridate)
+```
+
 ```{r}
 # List of required packages
 packages <- c("forecast", "tidyverse", "lterdatasampler", "tsibble", "feasts", "lubridate")
@@ -26,6 +37,7 @@ library(feasts)
 library(lubridate)
 
 ```
+
 # Read in data and explore
 
 ```{r}
@@ -36,6 +48,7 @@ summary(weather)
 ```
 
 # Plotting
+
 ```{r}
 weather %>% 
   mutate(
@@ -53,6 +66,7 @@ weather %>%
 ```
 
 # Convert data into timeseries object
+
 ```{r}
 
 weather_ts <- weather %>% 
@@ -69,11 +83,100 @@ head(weather_ts, 10) # weather_ts %>% head(10)
 STL Decomposition
 
 Splitting data into trend + season + noise
+
 ```{r}
 dcmp <- weather_ts %>% 
   model(STL(avg_temp))
 
 # obtain compoenets 
-components(dcmp)
+components(dcmp) %>% 
+  autoplot()
 ```
 
+# Obtain seasonally adjusted data
+
+```{r}
+# blue line is the trend + the noise (so minus season)
+components(dcmp) %>% 
+  filter(year(yr_mo) > 2019-30) %>%    # look at the last 30 years
+  as_tsibble() %>%                     # make TS table
+  autoplot(avg_temp, color = 'grey') +  # ogdata
+  geom_line(aes(y = season_adjust), color = 'lightblue') +
+  labs(x = 'Year', y = 'Monthly Mean Temp (C)')
+
+```
+
+# Forecasting
+
+```{r}
+recent <- weather_ts %>% 
+  filter(year(yr_mo) > 2019 - 30)
+```
+
+# Use Holt Winter Algorithim to Forecast
+
+## smoothing algorithim that uses the slope, trend, and seasonal component to forecast
+
+### alpha: base value (slope), gamma: adjusts for seasonal component, beta: trend value
+
+-   values are 0:1
+-   closer to 0, less weight it places on recent observation
+
+```{r}
+# similar to running fitted value in R except not using linear or binary regressions
+hw_fit <- HoltWinters(recent)
+
+# values are 0:1
+# closer to 0, less weight it places on recent observation
+hw_fit2 <- HoltWinters(recent, beta = 0.7, gamma = 0.1, alpha = 0.1)
+```
+
+# Visually Evaluate Fit
+
+-   redline is predicted value
+-   blueline is the custom fit algorithim \## Use this to evaluate current data to determine what to extrapolate Default is what typically fits the best, adjusting parameters is very subjective
+
+```{r}
+plot(hw_fit,
+     y_lab = 'Mean Air Temp (C)', 
+     xlim = c(2010, 2019))
+
+lines(hw_fit2$fitted[,1],
+     lty = 2,
+     col = 'lightblue')
+```
+
+# Making Predictions
+
+-   h is the number of periods
+-   we are in month years, so this forecasts for 4 years ahead \### Default
+
+```{r}
+hw_future <- forecast(hw_fit,
+                      h = 48,
+                      level = c(80, 95))
+plot(hw_future, xlim = c(2010. 2023))
+```
+
+### Custom
+
+-   adding a parameter means use more of the more recent data and drop off earlier data, this added weight to the current events, the data gets smalller, and confidence levels is expanded because there is less data confidence when it comes to forecasting
+
+```{r}
+hw_future2 <- forecast(hw_fit2,
+                      h = 48,
+                      level = c(80, 95))
+plot(hw_future2, xlim = c(2010. 2023))
+```
+
+# Check Residuals
+
+-   Check AFC: we want the bars roughly within/below the blue dashed line
+
+```{r}
+# autocorrelation check
+acf(hw_future$residuals, lag.max = 20, na.action = na.pass)
+
+# check residuals are normally distributed
+hist(hw_future$residuals, breaks = 20)
+```
