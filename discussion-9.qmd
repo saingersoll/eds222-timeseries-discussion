@@ -5,16 +5,6 @@ editor: visual
 ---
 
 ```{r}
-# tester chunk bc next chunk is getting funky
-library(forecast)
-library(tidyverse)
-library(lterdatasampler)
-library(tsibble)
-library(feasts)
-library(lubridate)
-```
-
-```{r}
 # List of required packages
 packages <- c("forecast", "tidyverse", "lterdatasampler", "tsibble", "feasts", "lubridate")
 
@@ -35,7 +25,6 @@ library(lterdatasampler)
 library(tsibble)
 library(feasts)
 library(lubridate)
-
 ```
 
 # Read in data and explore
@@ -50,6 +39,7 @@ summary(weather)
 # Plotting
 
 ```{r}
+
 weather %>% 
   mutate(
     yr_mo = yearmonth(sampledate),            # converts date
